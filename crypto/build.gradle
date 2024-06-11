@@ -1,0 +1,81 @@
+plugins {
+    id 'java'
+    id 'maven-publish'
+    id "com.github.ben-manes.versions" version "0.51.0"
+}
+
+group = "de.longri"
+version = "1.0"
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    junitVersion = '5.11.0-M2'
+}
+dependencies {
+    testImplementation(platform("org.junit:junit-bom:5.10.0"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+}
+
+if (file('gradle.properties.local').exists()) {
+    def props = new Properties()
+    file('gradle.properties.local').withInputStream { props.load(it) }
+    props.each { key, value -> project.ext.set(key, value) }
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            artifact("build/libs/" + rootProject.name + "-" + version + ".jar") {
+                extension 'jar'
+            }
+        }
+    }
+    repositories {
+        maven {
+            name 'deploy'
+            url deployRepoUrl
+            allowInsecureProtocol = true
+            credentials {
+                username = deployRepoUsername
+                password = deployRepoPassword
+            }
+        }
+    }
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+tasks.test {
+    useJUnitPlatform()
+}
+
+task _FAT_JAR(dependsOn: test, type: Jar) {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    manifest {
+        attributes 'Main-Class': 'com.longri'
+    }
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    with jar
+}
+task _CLEAN_TO_NEXUS {
+}
+task _BUILD_TO_NEXUS(dependsOn: _CLEAN_TO_NEXUS) {
+}
+task PUBLISH_TO_NEXUS(dependsOn: _BUILD_TO_NEXUS) {
+    println "PUBLISH_TO_NEXUS version $version"
+}
+_CLEAN_TO_NEXUS.dependsOn(clean)
+_BUILD_TO_NEXUS.dependsOn(_FAT_JAR)
+PUBLISH_TO_NEXUS.mustRunAfter(_FAT_JAR)
+PUBLISH_TO_NEXUS.dependsOn(publishAllPublicationsToDeployRepository)
+publishMavenPublicationToDeployRepository.dependsOn(_FAT_JAR)
+
+tasks.withType(Copy).all { duplicatesStrategy 'exclude' }
+tasks.withType(Jar).all { duplicatesStrategy 'exclude' }
