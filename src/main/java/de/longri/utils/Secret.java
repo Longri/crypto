@@ -45,7 +45,6 @@ public abstract class Secret {
      * <p>
      * this.put("Secret1", "Secret for Access")
      * this.put("Name", "Comment")
-     *
      */
     public abstract void init();
 
@@ -99,13 +98,16 @@ public abstract class Secret {
     }
 
     public Secret copy() throws GeneralSecurityException, IOException {
+        return copy(this.NAME);
+    }
 
-        Secret copy = getNewInstance(this.NAME);
-
+    public Secret copy(String newName) throws GeneralSecurityException, IOException {
+        Secret copy = getNewInstance(newName);
         for (String name : secretList.keySet()) {
             NamedStringProperty property = secretList.get(name);
             String encryptedValue = property.getValue();
-            copy.set(name, Crypto.decrypt(encryptedValue, SERIAL_NUMBER));
+            if (encryptedValue != null)
+                copy.set(name, Crypto.decrypt(encryptedValue, SERIAL_NUMBER));
         }
         return copy;
     }
