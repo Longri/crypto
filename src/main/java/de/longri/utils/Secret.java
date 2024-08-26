@@ -1,5 +1,6 @@
 package de.longri.utils;
 
+import org.apache.commons.cli.*;
 import org.reflections.Reflections;
 
 import java.io.*;
@@ -12,7 +13,7 @@ import java.util.Set;
 
 public abstract class Secret {
 
-    private final File secretFile;
+    private File secretFile;
     private final HashMap<String, NamedStringProperty> secretList = new HashMap<>();
     private final String NAME;
     private static final String SERIAL_NUMBER = UTIL.getSystemInfo().get("serialNumber");
@@ -116,6 +117,20 @@ public abstract class Secret {
 
     // ask for Values and write encrypted to File
     public static void main(String[] args) throws GeneralSecurityException, IOException {
+
+        CommandLineParser parser = new DefaultParser();
+        HelpFormatter formatter = new HelpFormatter();
+        CommandLine cmd = null;
+        Options options = getOptions();
+
+        try {
+            cmd = parser.parse(options, args);
+        } catch (ParseException e) {
+            System.out.println(e.getMessage());
+            formatter.printHelp("LINUX_PRTG_Sensor", options);
+            System.exit(1);
+        }
+
         Scanner scanner = new Scanner(System.in);
         // Use reflections to find and register all subclasses of JobType
         Reflections reflections = new Reflections("de.longri.utils");
@@ -125,7 +140,22 @@ public abstract class Secret {
             try {
                 if (hasDefaultConstructor(subclass)) {
                     Secret instance = subclass.newInstance();
+
+                    if (cmd.hasOption("f")) {
+                        //load secret file
+                        String path = cmd.getOptionValue("f");
+                        instance.secretFile = new File(path);
+                        instance.load();
+                    }
+
+                    String propertyName = null;
+                    if (cmd.hasOption("v")) {
+                        propertyName = cmd.getOptionValue("v");
+                    }
+
+
                     for (String name : instance.secretList.keySet()) {
+                        if (propertyName != null && !name.equals(propertyName)) continue;
                         NamedStringProperty property = instance.secretList.get(name);
                         System.out.println("Enter secret for " + property.getComment() + ":");
                         String input = scanner.nextLine();
@@ -139,6 +169,23 @@ public abstract class Secret {
         }
         scanner.close();
 
+    }
+
+    static private Options getOptions() {
+        Options options = new Options();
+        Option o = new Option("f", "file", true, "Changed File Name");
+        o.setRequired(false);
+        o.setArgs(2);
+        o.setValueSeparator(',');
+        options.addOption(o);
+
+        o = new Option("v", "value", true, "Changed Property Name");
+        o.setRequired(false);
+        o.setArgs(2);
+        o.setValueSeparator(',');
+        options.addOption(o);
+
+        return options;
     }
 
     /**

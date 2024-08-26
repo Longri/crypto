@@ -5,18 +5,17 @@ plugins {
 }
 
 group = "de.longri"
-version = "1.4"
+version = "1.5"
 
 repositories {
     mavenCentral()
 }
 
-ext {
-    junitVersion = '5.11.0-M2'
-}
+
 dependencies {
     implementation 'org.reflections:reflections:0.10.2'
-    testImplementation(platform("org.junit:junit-bom:5.10.0"))
+    implementation group: 'commons-cli', name: 'commons-cli', version: "1.9.0"
+    testImplementation(platform("org.junit:junit-bom:5.11.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
 }
 
