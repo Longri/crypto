@@ -64,6 +64,7 @@ public abstract class Secret {
             throw new RuntimeException("Cannot find property: " + name);
         }
         String encryptedValue = property.getValue();
+        if (encryptedValue == null) return null;
         return Crypto.decrypt(encryptedValue, SERIAL_NUMBER);
     }
 
@@ -81,6 +82,7 @@ public abstract class Secret {
 
         for (String name : prop.stringPropertyNames()) {
             String value = prop.getProperty(name);
+            if (value == null) continue;
             NamedStringProperty secret = secretList.get(name);
             if (secret != null) {
                 secret.setValue(value);
@@ -93,6 +95,7 @@ public abstract class Secret {
         for (String name : secretList.keySet()) {
             NamedStringProperty property = secretList.get(name);
             String encryptedValue = property.getValue();
+            if (encryptedValue == null) continue;
             prop.setProperty(name, encryptedValue);
         }
         prop.store(new FileOutputStream(this.getSecretFile()), null);
