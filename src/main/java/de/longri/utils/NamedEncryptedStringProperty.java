@@ -28,12 +28,24 @@ public class NamedEncryptedStringProperty implements NamedProperty {
 
     @Override
     public NamedProperty setValue(String newValue) throws GeneralSecurityException, IOException {
+        if (newValue == null) {
+            encryptedValue = null;
+            return this;
+        }
+
+        if (newValue.trim().isEmpty()) {
+            encryptedValue = "";
+            return this;
+        }
+
         encryptedValue = Crypto.encrypt(newValue.trim(), SERIAL_NUMBER);
         return this;
     }
 
     @Override
     public String getValue() throws GeneralSecurityException, IOException {
+        if (encryptedValue == null) {return null;}
+        if(encryptedValue.isEmpty()) {return "";}
         return Crypto.decrypt(encryptedValue, SERIAL_NUMBER);
     }
 

@@ -17,6 +17,10 @@ public class NamedStringProperty implements NamedProperty {
 
     @Override
     public NamedProperty setValue(String newValue) {
+        if (newValue == null) {
+            value = null;
+            return this;
+        }
         value = newValue.trim();
         return this;
     }
