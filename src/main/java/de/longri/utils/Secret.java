@@ -10,10 +10,7 @@ import org.reflections.Reflections;
 import java.io.*;
 import java.lang.reflect.Constructor;
 import java.security.GeneralSecurityException;
-import java.util.HashMap;
-import java.util.Properties;
-import java.util.Scanner;
-import java.util.Set;
+import java.util.*;
 
 import static de.longri.utils.UTIL.SERIAL_NUMBER;
 
@@ -146,9 +143,22 @@ public abstract class Secret {
         } else {
             for (String sectionName : sections) {
                 SubnodeConfiguration section = config.getSection(sectionName);
-                for (String prop : sections) {
-                    String value = section.getString(prop);
+
+                Iterator<String> keys = section.getKeys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    String value = section.getString(key);
                     if (value == null) continue;
+                    NamedProperty secret = secretList.get(key);
+                    if(sectionName.equals("SECRET")){
+                        if (secret instanceof NamedEncryptedStringProperty encryptedStringProperty) {
+                            encryptedStringProperty.encryptedValue = value;
+                        }else{
+                            throw new RuntimeException("Can't set a secret section value to a non encrypted property: " + key + " (" + secret.getClass().getSimpleName() + ")");
+                        }
+                    }else{
+                        secret.setValue(value);
+                    }
 
                 }
             }
