@@ -7,6 +7,8 @@ import java.util.Properties;
 
 public class UTIL {
 
+    static final String SERIAL_NUMBER = getSystemInfo().get("serialNumber");
+
     public static HashMap<String, String> getSystemInfo() {
 
         HashMap<String, String> map = new HashMap<>();
@@ -147,6 +149,43 @@ public class UTIL {
                 e.printStackTrace();
             }
 
+        }else if (SystemType.getSystemType() == SystemType.LINUX){
+            try {
+                // Serial Number
+                String result = execCmd("sudo dmidecode -s system-serial-number");
+                map.put("serialNumber", result.trim());
+
+                // Memory
+                result = execCmd("grep MemTotal /proc/meminfo");
+                if (result.contains("MemTotal")) {
+                    int pos = result.indexOf(':') + 1;
+                    map.put("memory", result.substring(pos).trim());
+                }
+
+                // Processor
+                result = execCmd("lscpu | grep 'Model name'");
+                if (result.contains("Model name")) {
+                    int pos = result.indexOf(':') + 1;
+                    map.put("processor", result.substring(pos).trim());
+                }
+
+                // Model Identifier
+                result = execCmd("sudo dmidecode -s system-product-name");
+                map.put("model", result.trim());
+
+                // Operating System
+                result = execCmd("uname -a");
+                map.put("operatingSystem", result.trim());
+
+                // Manufacturer
+                result = execCmd("sudo dmidecode -s system-manufacturer");
+                map.put("manufacturer", result.trim());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            // Printing the information
+            map.forEach((key, value) -> System.out.println(key + ": " + value));
         }
 
 
@@ -201,7 +240,8 @@ public class UTIL {
             String osName = ((String) sysprops.get("os.name")).toLowerCase();
             if (osName.matches(".*win.*")) return SystemType.WIN;
             if (osName.matches(".*mac.*")) return SystemType.MAC;
-            if (osName.matches(".*Linux.*")) return SystemType.LINUX;
+            if (osName.matches(".*linux.*")) return SystemType.LINUX;
+            if (osName.matches(".*debian.*")) return SystemType.LINUX;
             SystemType unknown = SystemType.UNKNOWN;
             return unknown;
         }

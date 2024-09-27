@@ -1,6 +1,6 @@
 package de.longri.utils;
 
-public class NamedStringProperty {
+public class NamedStringProperty implements NamedProperty {
 
     private final String NAME;
     private String value;
@@ -15,20 +15,31 @@ public class NamedStringProperty {
         this.comment = comment.trim();
     }
 
-    public void setValue(String newValue) {
+    @Override
+    public NamedProperty setValue(String newValue) {
         value = newValue.trim();
+        return this;
     }
 
+    @Override
     public String getValue() {
         return value;
     }
 
-    public void setComment(String newComment) {
+    @Override
+    public NamedProperty setComment(String newComment) {
         comment = newComment.trim();
+        return this;
     }
 
+    @Override
     public String getComment() {
         return comment;
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
     }
 
     @Override

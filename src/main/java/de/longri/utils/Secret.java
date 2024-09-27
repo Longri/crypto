@@ -1,6 +1,10 @@
 package de.longri.utils;
 
 import org.apache.commons.cli.*;
+import org.apache.commons.configuration2.INIConfiguration;
+import org.apache.commons.configuration2.SubnodeConfiguration;
+import org.apache.commons.configuration2.builder.fluent.Configurations;
+import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.reflections.Reflections;
 
 import java.io.*;
@@ -11,35 +15,69 @@ import java.util.Properties;
 import java.util.Scanner;
 import java.util.Set;
 
+import static de.longri.utils.UTIL.SERIAL_NUMBER;
+
 public abstract class Secret {
 
     private File secretFile;
-    private final HashMap<String, NamedStringProperty> secretList = new HashMap<>();
+    private final HashMap<String, NamedProperty> secretList = new HashMap<>();
     private final String NAME;
-    private static final String SERIAL_NUMBER = UTIL.getSystemInfo().get("serialNumber");
+    private final boolean ENCRYPT_ALL_OLD_VALUES;
 
+    protected Secret() throws GeneralSecurityException, IOException {
+        this(true);
+    }
 
-    protected Secret() {
+    protected Secret(boolean encryptOld) throws GeneralSecurityException, IOException {
+        ENCRYPT_ALL_OLD_VALUES = encryptOld;
         NAME = "SECRET";
         secretFile = new File("./SECRET.ini");
         init();
     }
 
-    public Secret(File file) {
+
+    public Secret(File file) throws GeneralSecurityException, IOException {
+        this(file, true);
+    }
+
+    public Secret(File file, boolean encryptOld) throws GeneralSecurityException, IOException {
+        ENCRYPT_ALL_OLD_VALUES = encryptOld;
         NAME = file.getName();
         secretFile = file;
         init();
     }
 
-    public Secret(String name) {
+    public Secret(String name) throws GeneralSecurityException, IOException {
+        this(name, true);
+    }
+
+    public Secret(String name, boolean encryptOld) throws GeneralSecurityException, IOException {
+        ENCRYPT_ALL_OLD_VALUES = encryptOld;
         NAME = name;
         secretFile = new File("./" + name + ".ini");
         init();
     }
 
+    /**
+     * Diese Methode ist veraltet und sollte nicht mehr verwendet werden.
+     * Verwenden Sie stattdessen {@link #initial(NamedProperty property)}.
+     *
+     * @deprecated seit Version 1.6.0. Verwenden Sie {@link #initial(NamedProperty property)}.
+     */
+    @Deprecated(since = "1.6.0", forRemoval = true)
     protected void put(String name, String comment) {
         secretList.put(name, new NamedStringProperty(name, comment));
     }
+
+    /**
+     * Initializes the given named property with the specified comment.
+     *
+     * @param property the NamedProperty object to be initialized
+     */
+    protected void initial(NamedProperty property) {
+        secretList.put(property.getName(), property);
+    }
+
 
     /**
      * put values with description on secureList.
@@ -47,25 +85,22 @@ public abstract class Secret {
      * this.put("Secret1", "Secret for Access")
      * this.put("Name", "Comment")
      */
-    public abstract void init();
+    public abstract void init() throws GeneralSecurityException, IOException;
 
-    public void set(String name, String value) throws GeneralSecurityException, UnsupportedEncodingException {
-        String encryptedValue = Crypto.encrypt(value, SERIAL_NUMBER);
-        NamedStringProperty propperty = secretList.get(name);
+    public void set(String name, String value) throws GeneralSecurityException, IOException {
+        NamedProperty propperty = secretList.get(name);
         if (propperty == null) {
             throw new RuntimeException("Cannot find property: " + name);
         }
-        propperty.setValue(encryptedValue);
+        propperty.setValue(value);
     }
 
     public String get(String name) throws GeneralSecurityException, IOException {
-        NamedStringProperty property = secretList.get(name);
+        NamedProperty property = secretList.get(name);
         if (property == null) {
             throw new RuntimeException("Cannot find property: " + name);
         }
-        String encryptedValue = property.getValue();
-        if (encryptedValue == null) return null;
-        return Crypto.decrypt(encryptedValue, SERIAL_NUMBER);
+        return property.getValue();
     }
 
     public File getSecretFile() {
@@ -76,29 +111,83 @@ public abstract class Secret {
         return getSecretFile().exists();
     }
 
-    public void load() throws IOException, GeneralSecurityException {
-        Properties prop = new Properties();
-        prop.load(new FileInputStream(this.getSecretFile()));
+    public void load() throws IOException, GeneralSecurityException, ConfigurationException {
 
-        for (String name : prop.stringPropertyNames()) {
-            String value = prop.getProperty(name);
-            if (value == null) continue;
-            NamedStringProperty secret = secretList.get(name);
-            if (secret != null) {
-                secret.setValue(value);
+        Configurations configs = new Configurations();
+        INIConfiguration config = configs.ini(this.getSecretFile());
+
+        Set<String> sections = config.getSections();
+        if (sections.isEmpty() || !(sections.contains("SECRET") || sections.contains("CONFIG"))) {
+            // read an old version
+            Properties prop = new Properties();
+            prop.load(new FileInputStream(this.getSecretFile()));
+            for (String name : prop.stringPropertyNames()) {
+                String value = prop.getProperty(name);
+                if (value == null) continue;
+                NamedProperty secret = secretList.get(name);
+                if (secret != null) {
+
+                    if (secret instanceof NamedEncryptedStringProperty encryptedStringProperty) {
+                        encryptedStringProperty.encryptedValue = value;
+                    } else {
+                        //replace it with Encrypted property
+                        if (ENCRYPT_ALL_OLD_VALUES) {
+                            NamedEncryptedStringProperty encryptedStringProperty = new NamedEncryptedStringProperty(name);
+                            encryptedStringProperty.encryptedValue = value;
+                            encryptedStringProperty.setComment(secret.getComment());
+                            secretList.remove(name);
+                            secretList.put(name, encryptedStringProperty);
+                        } else {
+                            secret.setValue(Crypto.decrypt(value, SERIAL_NUMBER));
+                        }
+                    }
+                }
+            }
+        } else {
+            for (String sectionName : sections) {
+                SubnodeConfiguration section = config.getSection(sectionName);
+                for (String prop : sections) {
+                    String value = section.getString(prop);
+                    if (value == null) continue;
+
+                }
             }
         }
     }
 
-    public void save() throws IOException, GeneralSecurityException {
-        Properties prop = new Properties();
-        for (String name : secretList.keySet()) {
-            NamedStringProperty property = secretList.get(name);
-            String encryptedValue = property.getValue();
-            if (encryptedValue == null) continue;
-            prop.setProperty(name, encryptedValue);
+    public void save() throws IOException, GeneralSecurityException, ConfigurationException {
+        Configurations configs = new Configurations();
+
+        //if file not exist, create a new one!
+        if (!this.getSecretFile().exists()) {
+            if (!this.getSecretFile().createNewFile()) {
+                throw new IOException("Can't create File: " + this.getSecretFile().getAbsolutePath());
+            }
+        } else {
+            //delete and create a new one for determine file is empty
+            if (!this.getSecretFile().delete()) {
+                throw new IOException("Can't delete File: " + this.getSecretFile().getAbsolutePath());
+            }
+
+            if (!this.getSecretFile().createNewFile()) {
+                throw new IOException("Can't create File: " + this.getSecretFile().getAbsolutePath());
+            }
         }
-        prop.store(new FileOutputStream(this.getSecretFile()), null);
+
+        INIConfiguration config = configs.ini(this.getSecretFile());
+
+        for (String name : secretList.keySet()) {
+            NamedProperty property = secretList.get(name);
+            String value = property.getValue();
+            if (value == null) continue;
+
+            if (property instanceof NamedEncryptedStringProperty encryptedStringProperty) {
+                config.setProperty("SECRET." + name, encryptedStringProperty.encryptedValue);
+            } else {
+                config.setProperty("CONFIG." + name, value);
+            }
+        }
+        config.write(new FileWriter(this.getSecretFile()));
     }
 
     public Secret copy() throws GeneralSecurityException, IOException {
@@ -108,15 +197,14 @@ public abstract class Secret {
     public Secret copy(String newName) throws GeneralSecurityException, IOException {
         Secret copy = getNewInstance(newName);
         for (String name : secretList.keySet()) {
-            NamedStringProperty property = secretList.get(name);
-            String encryptedValue = property.getValue();
-            if (encryptedValue != null)
-                copy.set(name, Crypto.decrypt(encryptedValue, SERIAL_NUMBER));
+            NamedProperty property = secretList.get(name);
+            NamedProperty copyProperty = copy.secretList.get(name);
+            copyProperty.setValue(property.getValue());
         }
         return copy;
     }
 
-    abstract Secret getNewInstance(String Name);
+    abstract Secret getNewInstance(String Name) throws GeneralSecurityException, IOException;
 
     // ask for Values and write encrypted to File
     public static void main(String[] args) throws GeneralSecurityException, IOException {
@@ -159,14 +247,14 @@ public abstract class Secret {
 
                     for (String name : instance.secretList.keySet()) {
                         if (propertyName != null && !name.equals(propertyName)) continue;
-                        NamedStringProperty property = instance.secretList.get(name);
+                        NamedProperty property = instance.secretList.get(name);
                         System.out.println("Enter secret for " + property.getComment() + ":");
                         String input = scanner.nextLine();
                         instance.set(name, input);
                     }
                     instance.save();
                 }
-            } catch (InstantiationException | IllegalAccessException e) {
+            } catch (InstantiationException | IllegalAccessException | ConfigurationException e) {
                 e.printStackTrace();
             }
         }
