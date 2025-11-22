@@ -1,5 +1,7 @@
 package de.longri.utils;
 
+import org.junit.jupiter.api.Test;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -17,5 +19,23 @@ public class UTILS {
                 fos.write(buffer, 0, length);
             }
         }
+    }
+
+    @Test
+    public void getSysInfoTest(){
+
+        //alte methode braucht 15921 milisec
+
+        long start = System.currentTimeMillis();
+
+        for (int i = 0; i < 100; i++) {
+            UTIL.getSystemInfo();
+        }
+
+        UTIL.getSystemInfo()
+                .forEach((key, value) -> System.out.println(key + " : " + value));
+        System.out.println("Time: " + (System.currentTimeMillis() - start));
+
+
     }
 }

@@ -9,9 +9,18 @@ public class UTIL {
 
     static final String SERIAL_NUMBER = getSystemInfo().get("serialNumber");
 
+    static int debugcounter = 0;
+
+    static HashMap<String, String> map;
+
     public static HashMap<String, String> getSystemInfo() {
 
-        HashMap<String, String> map = new HashMap<>();
+        if (map != null) return map;
+
+        map = new HashMap<>();
+
+        debugcounter=debugcounter+1;
+        System.out.println("Count = "+ debugcounter);
 
         if (SystemType.getSystemType() == SystemType.MAC) {
 
@@ -92,62 +101,70 @@ public class UTIL {
             }
         } else if (SystemType.getSystemType() == SystemType.WIN) {
 
-            /** WMIC COMPUTERSYSTEM get Manufacturer,Model,Caption,TotalPhysicalMemory
-             * Caption   Manufacturer  Model        TotalPhysicalMemory
-             * BM-NB162  Dell Inc.     XPS 13 9370  8388562944
-             */
+//            change
+            String manufacturer = "";
+            String model;
+            String serialNumber;
+            String cpuName;
+            String osCaption;
+            String totalMemoryBytesStr;
 
-            /**  WMIC OS get Caption
-             * Caption
-             * Microsoft Windows 10 Pro
-             */
-
-            /** WMIC BIOS get SerialNumber
-             * SerialNumber
-             * JB1TQN2
-             */
-
-            /** WMIC CPU get Name
-             * Name
-             * Intel(R) Core(TM) i5-8250U CPU @ 1.60GHz
-             */
             try {
-                String result = execCmd("WMIC COMPUTERSYSTEM get Manufacturer");
-                String[] lines = result.split("\r\n");
-                map.put("manufacturer", lines[1].trim());
+                String cmd =
+                        "powershell -NoProfile -Command " +
+                                "\"$cs = Get-CimInstance Win32_ComputerSystem; " +
+                                "$bios = Get-CimInstance Win32_BIOS; " +
+                                "$cpu = Get-CimInstance Win32_Processor; " +
+                                "$os = Get-CimInstance Win32_OperatingSystem; " +
+                                "Write-Output (" +
+                                "$cs.Manufacturer + '|' +" +
+                                "$cs.Model + '|' +" +
+                                "$bios.SerialNumber + '|' +" +
+                                "$cpu.Name + '|' +" +
+                                "$os.Caption + '|' +" +
+                                "$cs.TotalPhysicalMemory" +
+                                ")\"";
 
-                result = execCmd("WMIC COMPUTERSYSTEM get Model");
-                lines = result.split("\r\n");
-                map.put("model", lines[1].trim());
+                String output = execCmd(cmd).trim();
 
-                result = execCmd("WMIC BIOS get SerialNumber");
-                lines = result.split("\r\n");
-                map.put("serialNumber", lines[1].trim());
-
-                result = execCmd("wmic memorychip get capacity");
-                lines = result.split("\r\n");
-                long bytes = Long.parseLong(lines[1].trim());
-                if (lines.length > 2 && !lines[2].trim().isEmpty()) bytes += Long.parseLong(lines[2].trim());
-                if (lines.length > 3 && !lines[3].trim().isEmpty()) bytes += Long.parseLong(lines[3].trim());
-                if (lines.length > 4 && !lines[4].trim().isEmpty()) bytes += Long.parseLong(lines[4].trim());
-                if (lines.length > 5 && !lines[5].trim().isEmpty()) bytes += Long.parseLong(lines[5].trim());
-                map.put("memory", humanReadableByteCount(bytes));
-
-                result = execCmd("WMIC CPU get Name");
-                lines = result.split("\r\n");
-                map.put("processor", lines[1].trim());
-
-                result = execCmd("WMIC OS get Caption");
-                lines = result.split("\r\n");
-                map.put("operatingSystem", lines[1].trim());
-                result = execCmd("WMIC COMPUTERSYSTEM get Model");
-                lines = result.split("\r\n");
-                map.put("model", lines[1].trim());
-
+                // Ergebnis: manufacturer|model|serial|cpuName|osCaption|totalMemory
+                String[] parts = output.split("\\|", -1);
+                if (parts.length >= 6) {
+                    manufacturer        = parts[0].trim();
+                    model               = parts[1].trim();
+                    serialNumber        = parts[2].trim();
+                    cpuName             = parts[3].trim();
+                    osCaption           = parts[4].trim();
+                    totalMemoryBytesStr = parts[5].trim();
+                } else {
+                    throw new RuntimeException("Unexpected output from PowerShell: " + output);
+                }
 
             } catch (IOException e) {
-                e.printStackTrace();
+                throw new RuntimeException(e);
             }
+
+            System.out.println(manufacturer);
+            System.out.println(model);
+            System.out.println(serialNumber);
+            System.out.println(cpuName);
+            System.out.println(osCaption);
+            System.out.println(totalMemoryBytesStr);
+
+
+            String result;
+            String[] lines;
+            map.put("manufacturer", manufacturer);
+            map.put("model", model);
+            map.put("serialNumber", serialNumber);
+            long totalMemoryBytes = Long.parseLong(totalMemoryBytesStr);
+            System.out.println("Mem:" + humanReadableByteCount(totalMemoryBytes));
+            map.put("memory", humanReadableByteCount(totalMemoryBytes));
+
+            map.put("processor", cpuName);
+            map.put("operatingSystem", osCaption);
+            map.put("model", "-");
+
 
         }else if (SystemType.getSystemType() == SystemType.LINUX){
             try {
