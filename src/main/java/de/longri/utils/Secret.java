@@ -16,10 +16,10 @@ import static de.longri.utils.UTIL.SERIAL_NUMBER;
 
 public abstract class Secret {
 
-    private File secretFile;
-    private final HashMap<String, NamedProperty> secretList = new HashMap<>();
-    private final String NAME;
-    private final boolean ENCRYPT_ALL_OLD_VALUES;
+    protected File secretFile;
+    protected final HashMap<String, NamedProperty> secretList = new HashMap<>();
+    protected final String NAME;
+    protected final boolean ENCRYPT_ALL_OLD_VALUES;
 
     protected Secret() throws GeneralSecurityException, IOException {
         this(true);
@@ -150,13 +150,13 @@ public abstract class Secret {
                     String value = section.getString(key);
                     if (value == null) continue;
                     NamedProperty secret = secretList.get(key);
-                    if(sectionName.equals("SECRET")){
+                    if (sectionName.equals("SECRET")) {
                         if (secret instanceof NamedEncryptedStringProperty encryptedStringProperty) {
                             encryptedStringProperty.encryptedValue = value;
-                        }else{
+                        } else {
                             throw new RuntimeException("Can't set a secret section value to a non encrypted property: " + key + " (" + secret.getClass().getSimpleName() + ")");
                         }
-                    }else{
+                    } else {
                         secret.setValue(value);
                     }
 
@@ -168,17 +168,7 @@ public abstract class Secret {
     public void save() throws IOException, GeneralSecurityException, ConfigurationException {
         Configurations configs = new Configurations();
 
-        //if file not exist, create a new one!
         if (!this.getSecretFile().exists()) {
-            if (!this.getSecretFile().createNewFile()) {
-                throw new IOException("Can't create File: " + this.getSecretFile().getAbsolutePath());
-            }
-        } else {
-            //delete and create a new one for determine file is empty
-            if (!this.getSecretFile().delete()) {
-                throw new IOException("Can't delete File: " + this.getSecretFile().getAbsolutePath());
-            }
-
             if (!this.getSecretFile().createNewFile()) {
                 throw new IOException("Can't create File: " + this.getSecretFile().getAbsolutePath());
             }
@@ -197,7 +187,9 @@ public abstract class Secret {
                 config.setProperty("CONFIG." + name, value);
             }
         }
-        config.write(new FileWriter(this.getSecretFile()));
+        try (FileWriter writer = new FileWriter(this.getSecretFile())) {
+            config.write(writer);
+        }
     }
 
     public Secret copy() throws GeneralSecurityException, IOException {
@@ -272,7 +264,7 @@ public abstract class Secret {
 
     }
 
-    static private Options getOptions() {
+    static protected Options getOptions() {
         Options options = new Options();
         Option o = new Option("f", "file", true, "Changed File Name");
         o.setRequired(false);
@@ -295,7 +287,7 @@ public abstract class Secret {
      * @param clazz the class to check
      * @return true if the class has a default constructor, false otherwise
      */
-    private static boolean hasDefaultConstructor(Class<?> clazz) {
+    protected static boolean hasDefaultConstructor(Class<?> clazz) {
         try {
             Constructor<?> constructor = clazz.getDeclaredConstructor();
             return constructor.isAccessible() || constructor.trySetAccessible();
